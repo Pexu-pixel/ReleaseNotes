@@ -1,0 +1,156 @@
+trigger: none
+pr: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+
+# =========================================================
+# Generate HTML Release Notes
+# =========================================================
+- task: XplatGenerateReleaseNotes@4
+  displayName: 'Generate HTML Release Notes'
+  inputs:
+    outputfile: '$(Build.ArtifactStagingDirectory)/release-notes.html'
+    templateLocation: 'inline'
+    template: |
+      <!DOCTYPE html>
+      <html lang="fi">
+      <head>
+        <meta charset="UTF-8">
+        <title>Release $(Build.BuildNumber)</title>
+        <style>
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 40px;
+            color: #333;
+          }
+          h1 {
+            color: #003a8f;
+          }
+          h2 {
+            margin-top: 30px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 6px;
+          }
+          table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 12px;
+          }
+          th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            vertical-align: top;
+          }
+          th {
+            background-color: #f2f2f2;
+          }
+          .meta {
+            margin-bottom: 25px;
+            font-size: 0.95em;
+          }
+        </style>
+      </head>
+
+      <body>
+
+        <h1>Release notes – $(Build.BuildNumber)</h1>
+
+        <div class="meta">
+          <strong>Pipeline:</strong> $(Build.DefinitionName)<br/>
+          <strong>Run ID:</strong> $(Build.BuildId)<br/>
+          <strong>Date:</strong> $(Build.FinishTime)<br/>
+          <strong>Source branch:</strong> $(Build.SourceBranch)
+        </div>
+
+        <!-- ================================================= -->
+        <!-- USER STORIES -->
+        <!-- ================================================= -->
+
+<h2>✅ User Storyt</h2>
+
+<table>
+  <tr>
+    <th>ID</th>
+    <th>Otsikko</th>
+    <th>Status</th>
+    <th>Iteration</th>
+  </tr>
+  {{#each workItems}}
+  {{#if (eq fields.System.WorkItemType "User Story")}}
+  <tr>
+    <td>
+      <a href="$(System.CollectionUri)$(System.TeamProject)/_workitems/edit/{{id}}"
+         target="_blank">
+        {{id}}
+      </a>
+    </td>
+    <td>{{fields.System.Title}}</td>
+    <td>{{fields.System.State}}</td>
+    <td>{{fields.System.IterationPath}}</td>
+  </tr>
+  {{/if}}
+  {{/each}}
+</table>
+
+        <!-- ================================================= -->
+        <!-- TASKS -->
+        <!-- ================================================= -->
+<h2>🧩 Taskit</h2>
+
+<table>
+  <tr>
+    <th>ID</th>
+    <th>Otsikko</th>
+    <th>Status</th>
+    <th>Iteration</th>
+  </tr>
+  {{#each workItems}}
+  {{#if (eq fields.System.WorkItemType "Task")}}
+  <tr>
+    <td>
+      <a href="$(System.CollectionUri)$(System.TeamProject)/_workitems/edit/{{id}}"
+         target="_blank">
+        {{id}}
+      </a>
+    </td>
+    <td>{{fields.System.Title}}</td>
+    <td>{{fields.System.State}}</td>
+    <td>{{fields.System.IterationPath}}</td>
+  </tr>
+  {{/if}}
+  {{/each}}
+</table>
+
+        <!-- ================================================= -->
+        <!-- BUGS (optional, mutta yleensä hyödyllinen) -->
+        <!-- ================================================= -->
+        <h2>🐞 Korjatut virheet</h2>
+        <ul>
+          {{#each workItems}}
+          {{#if (eq fields.System.WorkItemType "Bug")}}
+          <li><strong>{{id}}</strong> – {{fields.System.Title}}</li>
+          {{/if}}
+          {{/each}}
+        </ul>
+
+        <!-- ================================================= -->
+        <!-- TECH INFO -->
+        <!-- ================================================= -->
+        <h2>ℹ️ Tekninen tieto</h2>
+        <ul>
+          <li>Commit: $(Build.SourceVersion)</li>
+          <li>Build reason: $(Build.Reason)</li>
+        </ul>
+
+      </body>
+      </html>
+
+# =========================================================
+# Publish HTML as artifact
+# =========================================================
+- publish: '$(Build.ArtifactStagingDirectory)'
+  displayName: 'Publish Release Notes'
+  artifact: 'release-notes'
