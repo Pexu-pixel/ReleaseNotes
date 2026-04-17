@@ -1,0 +1,127 @@
+trigger: none
+pr: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- checkout: self
+
+# =========================================================
+# Generate HTML Release Notes with Parent-Child structure
+# =========================================================
+- task: XplatGenerateReleaseNotes@4
+  displayName: 'Generate HTML Release Notes (Parent-Child)'
+  inputs:
+    outputfile: '$(Build.ArtifactStagingDirectory)/release-notes.html'
+    templateLocation: 'InLine'
+    inlinetemplate: |
+      <!DOCTYPE html>
+      <html lang="fi">
+      <head>
+        <meta charset="UTF-8">
+        <title>Release notes – $(Build.BuildNumber)</title>
+        <style>
+          body { font-family: Arial, Helvetica, sans-serif; margin: 40px; color: #333; }
+          h1 { color: #003a8f; margin-bottom: 10px; }
+          .meta { margin-bottom: 22px; font-size: 0.95em; color: #444; }
+          .story { border: 1px solid #e6e6e6; border-radius: 8px; padding: 14px 16px; margin: 14px 0; }
+          .story h2 { margin: 0 0 6px 0; font-size: 1.1em; }
+          .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #f2f2f2; font-size: 0.85em; margin-left: 8px; }
+          ul { margin: 8px 0 0 18px; }
+          li { margin: 4px 0; }
+          a { color: #0b5cab; text-decoration: none; }
+          a:hover { text-decoration: underline; }
+          .empty { color: #777; font-style: italic; }
+          hr { border: none; border-top: 1px solid #eee; margin: 26px 0; }
+        </style>
+      </head>
+
+      <body>
+        <h1>Release notes – $(Build.BuildNumber)</h1>
+
+        <div class="meta">
+          <strong>Pipeline:</strong> $(Build.DefinitionName)<br/>
+          <strong>Run ID:</strong> $(Build.BuildId)<br/>
+          <strong>Date:</strong> $(Build.FinishTime)<br/>
+          <strong>Source branch:</strong> $(Build.SourceBranch)<br/>
+          <strong>Commit:</strong> $(Build.SourceVersion)
+        </div>
+
+        <hr/>
+
+        <h2>User Storyt ja niiden Taskit</h2>
+
+        <!--
+          Käytetään relatedWorkItems-listaa, koska se sisältää:
+          - work itemit jotka ovat mukana ajossa
+          - sekä niiden suorat parent/child -itemit, kun getParentsAndChildren=true
+        -->
+        {{#each relatedWorkItems}}
+          {{#if (eq (lookup this.fields 'System.WorkItemType') 'User Story')}}
+            <div class="story">
+              <h2>
+                <a href="$(System.CollectionUri)$(System.TeamProject)/_workitems/edit/{{this.id}}" target="_blank" rel="noopener">
+                  US {{this.id}}
+                </a>
+                – {{lookup this.fields 'System.Title'}}
+                <span class="pill">{{lookup this.fields 'System.State'}}</span>
+              </h2>
+
+              <div class="meta">
+                <strong>Iteration:</strong> {{lookup this.fields 'System.IterationPath'}}
+              </div>
+
+              <strong>Taskit (Child):</strong>
+              <ul>
+                {{#each this.relations}}
+                  {{#if (contains this.attributes.name 'Child')}}
+                    {{#with (lookup_a_work_item ../../relatedWorkItems this.url)}}
+                      {{#if (eq (lookup this.fields 'System.WorkItemType') 'Task')}}
+                        <li>
+                          <a href="$(System.CollectionUri)$(System.TeamProject)/_workitems/edit/{{this.id}}" target="_blank" rel="noopener">
+                            Task {{this.id}}
+                          </a>
+                          – {{lookup this.fields 'System.Title'}}
+                          <span class="pill">{{lookup this.fields 'System.State'}}</span>
+                        </li>
+                      {{/if}}
+                    {{/with}}
+                  {{/if}}
+                {{/each}}
+              </ul>
+            </div>
+          {{/if}}
+        {{/each}}
+
+        <hr/>
+
+        <h2>Orvot Taskit (ei löydy parent User Storya tässä payloadissa)</h2>
+        <ul>
+          {{#each workItems}}
+            {{#if (eq fields.System.WorkItemType 'Task')}}
+              <li>
+                <a href="$(System.CollectionUri)$(System.TeamProject)/_workitems/edit/{{id}}" target="_blank" rel="noopener">
+                  Task {{id}}
+                </a>
+                – {{fields.System.Title}}
+                <span class="pill">{{fields.System.State}}</span>
+              </li>
+            {{/if}}
+          {{/each}}
+        </ul>
+
+      </body>
+      </html>
+
+    # Nämä liput rikastavat payloadia parent/child -relaatioilla:
+    getParentsAndChildren: true
+    # Tämä hakee kaikki parentit ketjussa (esim. Feature/Epic asti), jos haluat myöhemmin laajentaa:
+    getAllParents: true
+
+# =========================================================
+# Publish HTML as artifact
+# =========================================================
+- publish: '$(Build.ArtifactStagingDirectory)'
+  displayName: 'Publish Release Notes'
+  artifact: 'release-notes'
